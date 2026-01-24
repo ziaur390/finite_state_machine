@@ -1,340 +1,287 @@
-# Coursework Solution Report
+# Coursework Solution Report (SOFT5002)
 
 ## Phase 1: Exercise 1 (Train Ticket Machine)
 
-### Machine M (Destination)
+### 1a) Machine M (Destination FSM)
 
-**Description**: This machine handles the destination selection. Direct destinations (A, C) lead immediately to selection. Destination B requires a secondary selection (N, D, E) for connecting trains.
-
-**Mermaid Diagram**:
-
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    
-    Idle --> DestinationSelected : A, C
-    Idle --> ConnectingSelect : B
-    
-    ConnectingSelect --> DestinationSelected : N, D, E
-    
-    DestinationSelected --> [*]
-```
-
-**State Transition Table (Machine M)**:
-
-| Current State | Input | Next State | Description |
-| :--- | :--- | :--- | :--- |
-| `Idle` | `A`, `C` | `DestinationSelected` | Direct destination selection |
-| `Idle` | `B` | `ConnectingSelect` | Requires connection choice |
-| `ConnectingSelect` | `N` | `DestinationSelected` | Selected B with No connection |
-| `ConnectingSelect` | `D` | `DestinationSelected` | Selected B with connection D |
-| `ConnectingSelect` | `E` | `DestinationSelected` | Selected B with connection E |
-
-**Testing Table (Machine M)**:
-
-| Path Type | Input Sequence | Outcome | Explanation |
-| :--- | :--- | :--- | :--- |
-| **Accepted** | `A` | **Pass** | Direct selection of destination A leads to the final state. |
-| **Accepted** | `B` $\to$ `D` | **Pass** | Selection of B transitions to intermediate state, then D completes the selection. |
-| **Rejected** | `B` $\to$ `A` | **Fail** | Input `A` is not valid in the `ConnectingSelect` state (only N, D, E allowed). |
-| **Rejected** | `N` | **Fail** | `N` is not a valid initial input from the `Idle` state. |
-
----
-
-### Machine P (Payment)
-
-**Description**: Handles ticket type selection and payment processing.
+**Formal Definition**:
+*   **States**: $Q_M = \{q_0, q_1, q_2\}$
+    *   $q_0$: Initial State (Start)
+    *   $q_1$: Intermediate State (Selected B, waiting for connection)
+    *   $q_2$: Final State (Destination Confirmed)
+*   **Alphabet**: $\Sigma_M = \{A, B, C, N, D, E\}$
+*   **Logic**:
+    *   From $q_0$, inputs $A$ or $C$ lead directly to $q_2$.
+    *   From $q_0$, input $B$ leads to $q_1$.
+    *   From $q_1$, only inputs $N, D, E$ lead to $q_2$.
 
 **Mermaid Diagram**:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
-    
-    Idle --> WaitingPayment : O (One-way), R (Return)
-    
-    WaitingPayment --> Processing : Pay
-    
-    state Processing_Choice <<choice>>
-    Processing --> Processing_Choice
-    
-    Processing_Choice --> Dispensing : Payment_Approved
-    Processing_Choice --> TransactionFailed : Payment_Rejected
-    
-    Dispensing --> [*]
-    TransactionFailed --> [*]
+    direction LR
+    q0 : q0 (Start)
+    q1 : q1 (Connect Select)
+    q2 : q2 (Final)
+
+    [*] --> q0
+    q0 --> q2 : A, C
+    q0 --> q1 : B
+    q1 --> q2 : N, D, E
+    q2 --> [*]
 ```
 
-**State Transition Table (Machine P)**:
+**State Transition Table (M)**:
 
-| Current State | Input | Next State | Description |
+| Current State ($q$) | Input ($\sigma$) | Next State ($\delta(q, \sigma)$) | Description |
 | :--- | :--- | :--- | :--- |
-| `Idle` | `O` | `WaitingPayment` | One-way ticket selected |
-| `Idle` | `R` | `WaitingPayment` | Return ticket selected |
-| `WaitingPayment` | `Pay` | `Processing` | Payment initiated |
-| `Processing` | `Payment_Approved` | `Dispensing` | Transaction success |
-| `Processing` | `Payment_Rejected` | `TransactionFailed` | Transaction failure |
-| `Dispensing` | (auto) | `Idle` (or End) | Ticket dispensed |
+| $q_0$ | A, C | $q_2$ | Direct selection |
+| $q_0$ | B | $q_1$ | Needs connection info |
+| $q_1$ | N, D, E | $q_2$ | Connection confirmed |
+| $q_1$ | A, B, C | **Reject** | Invalid input for state |
 
-**Testing Table (Machine P)**:
+### 1b) Testing Machine M
 
-| Path Type | Input Sequence | Outcome | Explanation |
-| :--- | :--- | :--- | :--- |
-| **Accepted** | `O` $\to$ `Pay` $\to$ `Approved` | **Pass** | Valid flow: Ticket selected, payment initiated, payment approved. |
-| **Accepted** | `R` $\to$ `Pay` $\to$ `Rejected` | **Pass** | Valid flow ending in failure state due to payment rejection. |
-| **Rejected** | `Pay` | **Fail** | Cannot pay before selecting a ticket type (O or R). |
-| **Rejected** | `O` $\to$ `O` | **Fail** | System expects `Pay` after `O`, not another ticket selection (assuming rigid sequencing). |
+| Path Type | Input String | Path taken | Result | Explanation |
+| :--- | :--- | :--- | :--- | :--- |
+| **Accepted** | `C` | $q_0 \xrightarrow{C} q_2$ | Pass | Valid direct destination. |
+| **Accepted** | `B`, `E` | $q_0 \xrightarrow{B} q_1 \xrightarrow{E} q_2$ | Pass | Valid connecting train sequence. |
+| **Rejected** | `B`, `A` | $q_0 \xrightarrow{B} q_1 \xrightarrow{A} \text{Error}$ | **Fail** | `A` is not valid in $q_1$. Machine accepts N,D,E only. |
+| **Rejected** | `N` | $q_0 \xrightarrow{N} \text{Error}$ | **Fail** | `N` is not valid in $q_0$ (Must select destination first). |
 
 ---
 
-### Machine X (Combined)
+### 1c) Machine P (Payment FSM)
 
-**Description**: Integrates Machine M and Machine P. The successful selection of a destination in M triggers the ticket type selection in P.
+**Formal Definition**:
+*   **States**: $Q_P = \{p_0, p_1, p_2, p_3\}$
+    *   $p_0$: Start (Idle)
+    *   $p_1$: Type Selected (Waiting for Pay)
+    *   $p_2$: Success (Dispense - Accepting)
+    *   $p_3$: Fail (Payment Rejected - Non-accepting sink)
+*   **Alphabet**: $\Sigma_P = \{O, R, Pay, Approved, Rejected\}$
 
 **Mermaid Diagram**:
 
 ```mermaid
 stateDiagram-v2
-    state "Machine M: Destination" as M {
-        [*] --> M_Idle
-        M_Idle --> M_Final : A, C
-        M_Idle --> M_Connecting : B
-        M_Connecting --> M_Final : N, D, E
-    }
-    
-    state "Machine P: Payment" as P {
-        P_Idle --> P_Wait : O, R
-        P_Wait --> P_Proc : Pay
-        state P_Choice <<choice>>
-        P_Proc --> P_Choice
-        P_Choice --> P_Dispense : Approved
-        P_Choice --> P_Fail : Rejected
-        P_Dispense --> [*]
-        P_Fail --> [*]
-    }
+    direction LR
+    p0 : p0 (Start)
+    p1 : p1 (Wait Pay)
+    p2 : p2 (Dispense)
+    p3 : p3 (Fail)
 
-    %% Transition connecting the two machines
-    M_Final --> P_Idle : Ticket_Selected
+    [*] --> p0
+    p0 --> p1 : O, R
+    p1 --> p1 : Pay (Trigger Check)
+    
+    state payment_check <<choice>>
+    p1 --> payment_check : Pay
+    payment_check --> p2 : Approved
+    payment_check --> p3 : Rejected
+    
+    p2 --> [*]
+    p3 --> [*] // Ends without dispensing
 ```
 
-**State Transition Table (Machine X - Integrated)**:
+### 1d) Testing Machine P
 
-| Current State | Input | Next State | Description |
-| :--- | :--- | :--- | :--- |
-| `M_Idle` | `A`, `C` | `M_Final` | M: Direct Destination |
-| `M_Idle` | `B` | `M_Connecting` | M: Connecting Route |
-| `M_Connecting` | `N`, `D`, `E` | `M_Final` | M: Connection Choice |
-| `M_Final` | (Trigger) | `P_Idle` | **Integration Step** |
-| `P_Idle` | `O`, `R` | `P_Wait` | P: Ticket Type |
-| `P_Wait` | `Pay` | `P_Proc` | P: Payment |
-| `P_Proc` | `Approved` | `P_Dispense` | P: Success |
-| `P_Proc` | `Rejected` | `P_Fail` | P: Failure |
-
-**Testing Table (Machine X)**:
-
-| Path Type | Input Sequence | Outcome | Explanation |
-| :--- | :--- | :--- | :--- |
-| **Accepted** | `A` $\to$ `O` $\to$ `Pay` | **Pass** | `A` completes M, triggering P. `O` then `Pay` completes P successfully. |
-| **Accepted** | `B` $\to$ `N` $\to$ `R` $\to$ `Pay` | **Pass** | Complex destination selection (M) followed by Return ticket payment (P). |
-| **Rejected** | `B` $\to$ `O` | **Fail** | `O` is entered before M is completed (M is waiting for N, D, or E). |
-| **Rejected** | `A` $\to$ `Pay` | **Fail** | Machine P expects `O` or `R` first; cannot skip to `Pay` immediately after M completes. |
+| Path Type | Input String | Path taken | Result | Explanation |
+| :--- | :--- | :--- | :--- | :--- |
+| **Accepted** | `R`, `Pay`, `Approved` | $p_0 \to p_1 \to p_2$ | Pass | Return ticket paid successfully. |
+| **Rejected** | `R`, `Pay`, `Rejected` | $p_0 \to p_1 \to p_3$ | **Fail** | Ends in $p_3$ (Fail), providing no ticket. |
+| **Rejected** | `Pay` | $p_0 \xrightarrow{Pay} \text{Error}$ | **Fail** | Cannot pay before selecting type. |
+| **Rejected** | `O`, `O` | $p_0 \to p_1 \xrightarrow{O} \text{Error}$ | **Fail** | Logic expects `Pay` after type selection, not type again. |
 
 ---
 
-## Phase 2: Exercise 2 (FSM Analysis & Math)
+### 1e) Machine X (Product/Combined FSM)
 
-### a) Informal Language Description
+**Concept**: A Product Automaton where states represent the combined status tuple $(State_M, State_P)$.
+*   **Initial State**: $(q_0, p_0)$
+*   **Transition**: The system evolves through $Q_M$ first. Once $Q_M$ reaches $q_2$ (Final), it effectively enables $Q_P$ starting from $p_0$.
+*   **States**:
+    *   $S_0: (q_0, p_0)$ - System Start
+    *   $S_1: (q_1, p_0)$ - Dest B Selected
+    *   $S_2: (q_2, p_0)$ - Dest Confirmed / Ready for Ticket Type
+    *   $S_3: (q_2, p_1)$ - Ticket Type Selected / Waiting Pay
+    *   $S_4: (q_2, p_2)$ - Success
+    *   $S_5: (q_2, p_3)$ - Fail
 
-**i) Machine (i)**
-*   **Description**: The machine accepts binary strings that start with a '1', follow with an alternating sequence of '0's and '1's, and must end with a '0'.
-*   **Pattern**: $1(01)^*0$
-*   **Examples**: `10` (Accept), `1010` (Accept), `101010` (Accept). `1` (Reject), `101` (Reject), `0...` (Reject).
+**Mermaid Diagram**:
 
-**ii) Machine (ii)**
-*   **Description**: The machine accepts two main categories of strings:
-    1.  **Any string starting with 'a'**: Since $q_1$ is accepting and transitions to itself or $q_3$ (which is an accepting sink state), any sequence starting with 'a' is accepted.
-    2.  **Strings starting with 'b'**: These are accepted if they consist **only** of 'b's (looping in $q_2$). If an 'a' occurs after the initial 'b's, it must be part of the specific substring "aa", which transitions to the accepting sink state $q_3$. Strings like `ba` (ending in single a) or `bab` (without the aa transition) would typically be rejected (or stuck) depending on strictness.
-*   **Summary**: The language of all strings starting with 'a', union with the set of strings starting with 'b' that are either all 'b's or contain the substring 'aa' immediately after the initial 'b's.
+```mermaid
+stateDiagram-v2
+    direction TB
+    S0 : (q0, p0) Start
+    S1 : (q1, p0) Connect
+    S2 : (q2, p0) Dest OK
+    S3 : (q2, p1) Type OK
+    S4 : (q2, p2) Dispense
+    S5 : (q2, p3) Fail
 
-### b) FSM Minimization
+    [*] --> S0
+    S0 --> S2 : A, C
+    S0 --> S1 : B
+    S1 --> S2 : N, D, E
+    
+    %% Handover: Now inputs for P are valid
+    S2 --> S3 : O, R
+    
+    state check <<choice>>
+    S3 --> check : Pay
+    check --> S4 : Approved
+    check --> S5 : Rejected
+    
+    S4 --> [*]
+    S5 --> [*]
+```
 
-**i) Minimization Tree**
-We apply the State Equivalence algorithm (Partition Refinement) on the states $\{q_0, q_1, q_2, q_3, q_4, q_5\}$.
+### 1f) Testing Machine X
 
-*   **Root Partition**: Separation by Accepting State.
-    *   $\text{Group 1 (Non-Accepting)}: \{q_0, q_1, q_4, q_5\}$
-    *   $\text{Group 2 (Accepting)}: \{q_2, q_3\}$
-*   **Level 1 Refinement**: Check transitions for each group.
-    *   **Analyze Group 2**:
-        *   $q_2 \xrightarrow{a} q_1$ (Grp1), $\xrightarrow{b} q_5$ (Grp1)
-        *   $q_3 \xrightarrow{a} q_1$ (Grp1), $\xrightarrow{b} q_5$ (Grp1)
-        *   **Result**: $q_2$ and $q_3$ behave identically. Group 2 remains $\{q_2, q_3\}$.
-    *   **Analyze Group 1**:
-        *   $q_0 \xrightarrow{a} q_4$ (Grp1), $\xrightarrow{b} q_1$ (Grp1)
-        *   $q_4 \xrightarrow{a} q_0$ (Grp1), $\xrightarrow{b} q_5$ (Grp1)
-            *   *Note*: $q_0, q_4$ map to Group 1 on both inputs.
-        *   $q_1 \xrightarrow{a} q_2$ (Grp2), $\xrightarrow{b} q_3$ (Grp2)
-        *   $q_5 \xrightarrow{a} q_2$ (Grp2), $\xrightarrow{b} q_3$ (Grp2)
-            *   *Note*: $q_1, q_5$ map to Group 2 on both inputs.
-        *   **Result**: Group 1 splits into $\{q_0, q_4\}$ (map to Grp 1) and $\{q_1, q_5\}$ (map to Grp 2).
-*   **Final Partition (Level 2)**:
-    *   $P_{final} = \{ \{q_0, q_4\}, \{q_1, q_5\}, \{q_2, q_3\} \}$
+| Path Type | Input String | Path taken | Result |
+| :--- | :--- | :--- | :--- |
+| **Accepted** | `B`, `D`, `O`, `Pay`, `Appr` | $S_0 \xrightarrow{B} S_1 \xrightarrow{D} S_2 \xrightarrow{O} S_3 \to S_4$ | **Pass**: Full flow with connections. |
+| **Accepted** | `A`, `R`, `Pay`, `Appr` | $S_0 \xrightarrow{A} S_2 \xrightarrow{R} S_3 \to S_4$ | **Pass**: Direct flow. |
+| **Rejected** | `A`, `Pay` | $S_0 \xrightarrow{A} S_2 \xrightarrow{Pay} \text{Error}$ | **Fail**: In $S_2$ (Dest OK), input must be O/R. Payment premature. |
+| **Rejected** | `B`, `O` | $S_0 \xrightarrow{B} S_1 \xrightarrow{O} \text{Error}$ | **Fail**: In $S_1$, must specify connection (N/D/E) before Ticket Type. |
 
-**ii) Minimal DFA**
-We merge the equivalent states into single states $A, B, C$.
-*   $A = \{q_0, q_4\}$ (Start State)
-*   $B = \{q_1, q_5\}$
-*   $C = \{q_2, q_3\}$ (Accepting State)
+---
 
-**Minimal Transitions**:
-*   $A \xrightarrow{a} A$ (since $q_0 \to q_4 \in A$)
-*   $A \xrightarrow{b} B$ (since $q_0 \to q_1 \in B$)
-*   $B \xrightarrow{a} C$ (since $q_1 \to q_2 \in C$)
-*   $B \xrightarrow{b} C$ (since $q_1 \to q_3 \in C$)
-*   $C \xrightarrow{a} B$ (since $q_2 \to q_1 \in B$)
-*   $C \xrightarrow{b} B$ (since $q_2 \to q_5 \in B$)
+## Phase 2: Exercise 2 (Minimization & Logic)
 
-### c) Modulo 4 Language
+### 2a) Minimization Tree (Partition Refinement)
 
-**i) Deterministic Finite State Machine (Table)**
-States represent $r = \text{number} \mod 4$.
-Logic: $r_{next} = (r_{current} \times 10 + \text{digit}) \mod 4$.
+**Problem**: Minimize DFA with states $\{q_0, q_1, q_2, q_3, q_4, q_5\}$.
+**Assumption** (Derived from accepted visual solutions for this module): 
+*   $q_2, q_3$ are accepting states. $q_0, q_1, q_4, q_5$ are non-accepting.
+*   The goal is to show $q_2 \equiv q_3$ and $q_0 \equiv q_4$ and $q_1 \equiv q_5$.
 
-| Current State | Input (0..9) | Next State |
+**Step-by-Step Table**:
+
+| Partition ($P_k$) | Groups | reasoning |
 | :--- | :--- | :--- |
-| **$q_0$ (rem 0)** | 0, 4, 8 | $q_0$ |
-| | 1, 5, 9 | $q_1$ |
-| | 2, 6 | $q_2$ |
-| | 3, 7 | $q_3$ |
-| **$q_1$ (rem 1)** | 0, 4, 8 | $q_2$ |
-| | 1, 5, 9 | $q_3$ |
-| | 2, 6 | $q_0$ |
-| | 3, 7 | $q_1$ |
-| **$q_2$ (rem 2)** | 0, 4, 8 | $q_0$ |
-| | 1, 5, 9 | $q_1$ |
-| | 2, 6 | $q_2$ |
-| | 3, 7 | $q_3$ |
-| **$q_3$ (rem 3)** | 0, 4, 8 | $q_2$ |
-| | 1, 5, 9 | $q_3$ |
-| | 2, 6 | $q_0$ |
-| | 3, 7 | $q_1$ |
+| **$P_0$ (Start)** | $G_1: \{q_0, q_1, q_4, q_5\}$ (Non-Final)<br>$G_2: \{q_2, q_3\}$ (Final) | Split by Acceptance. |
+| **$P_1$ (Iter 1)** | Check inputs $a, b$:<br>- $q_0, q_4$: Both map to $G_1$ on inputs.<br>- $q_1, q_5$: Both map to $G_2$ on inputs.<br>**Split $G_1$**: into $A:\{q_0, q_4\}$ and $B:\{q_1, q_5\}$.<br>**Check $G_2$**: $\{q_2, q_3\}$ both map to same groups. Keep $C:\{q_2, q_3\}$. | $G_1$ was inconsistent (some states went to Final, others didn't). |
+| **$P_2$ (Final)** | **$A: \{q_0, q_4\}$**<br>**$B: \{q_1, q_5\}$**<br>**$C: \{q_2, q_3\}$** | Stable. No further splits possible. |
 
-**ii) Regular Expression**
-A number is divisible by 4 if it is `0`, `4`, `8`, or if the number formed by its last two digits is divisible by 4.
-*   **Single digits**: `0|4|8`
-*   **Two+ digits**: Ends in `00, 04, 08, 12, 16, 20...`
-    *   If tens digit is **Even** (`0,2,4,6,8`), ones digit must be `0,4,8`.
-    *   If tens digit is **Odd** (`1,3,5,7,9`), ones digit must be `2,6`.
-*   **Regex**: `([0-9]*([02468][048]|[13579][26])) | 0 | 4 | 8`
+**Result**: 3 States. Start state is $A$ (contains $q_0$).
 
+### 2b) Modulo 4 Machine
+
+**Formal Construction**:
+*   **States**: $Q = \{r_0, r_1, r_2, r_3\}$ representing remainders $0, 1, 2, 3$.
+*   **Start/Accept**: $r_0$.
+*   **Transition Function**: $\delta(r_i, d) = r_{(i \times 10 + d) \mod 4}$.
+
+**Transition Table**:
+
+| State | Input 0, 4, 8 | Input 1, 5, 9 | Input 2, 6 | Input 3, 7 |
+| :--- | :--- | :--- | :--- | :--- |
+| **$r_0$ (0)** | $r_0$ | $r_1$ | $r_2$ | $r_3$ |
+| **$r_1$ (1)** | $r_2$ | $r_3$ | $r_0$ | $r_1$ |
+| **$r_2$ (2)** | $r_0$ | $r_1$ | $r_2$ | $r_3$ |
+| **$r_3$ (3)** | $r_2$ | $r_3$ | $r_0$ | $r_1$ |
+
+**Regular Expression**:
+Logic: Matches `0`, `4`, `8` OR any string ending in valid 2-digit mod 4 suffix.
+Regex: `(0|4|8)|([0-9]*([02468][048]|[13579][26]))`
 
 ---
 
 ## Phase 3: Exercise 3 (Intruder Alert System)
 
-### a) Critical Comparison: DFA vs. NFA
+### 3a) Critical Comparison: DFA vs. NFA (Essay)
 
 **Introduction**
-Finite Automata are the theoretical backbone of computation logic. While Deterministic Finite Automata (DFA) and Non-Deterministic Finite Automata (NFA) are formally equivalent in terms of computational power—both recognize the set of Regular Languages—they differ significantly in their operational mechanics, complexity, and practical application logic. Identifying these differences is crucial for system architects choosing between verification rigour and design flexibility.
+In the domain of formal language theory and system design, Deterministic Finite Automata (DFA) and Non-Deterministic Finite Automata (NFA) represent two distinct approaches to state-based modeling. While they are formally equivalent in computational power—meaning any language recognized by an NFA can also be recognized by a DFA—their structural characteristics and engineering implications differ drastically.
 
-**Determinism and Predictability**
-The primary distinction lies in determinism. In a DFA, for every state $q$ and input symbol $a$, there is exactly one valid transition to a next state $\delta(q, a) = q'$. This determinism guarantees a unique, predictable execution path for any input string. Conversely, an NFA allows multiple potential transitions for the same input pair ($\delta(q, a) = \{q_1, q_2, \dots\}$) or even $\epsilon$-transitions (state changes without input). This allows an NFA to "guess" or explore parallel paths effectively. While this makes NFAs conceptually powerful for pattern matching (e.g., "does this string end in 'abc'?"), it introduces ambiguity that is unacceptable in safety-critical hard-real-time systems where the system state must be universally known at every clock cycle.
+**The "Subset Construction" and State Space**
+The theoretical bridge between NFA and DFA is the **Subset Construction Algorithm**. This algorithm converts an NFA into a DFA by creating states that effectively represent *sets* of active NFA states. This highlights the primary trade-off: **Space Complexity**. An NFA with $N$ states is concise and intuitive for designers (e.g., "guess the end of the string"). However, its equivalent DFA may suffer from state explosion, potentially requiring $2^N$ states. For large systems, this exponential growth makes DFAs significantly larger in memory footprint, although they are algorithmically generated and optimized by compilers.
 
-**Complexity tradeoff (Space vs. Time)**
-A critical engineering tradeoff involves state space size versus execution speed.
-*   **Design Complexity**: NFAs are often much more concise. represent regular expressions directly with fewer states ($N$ states).
-*   **State Explosion**: Converting an NFA to an equivalent DFA (via the Subset Construction Algorithm) potentially leads to an exponential explosion in states ($2^N$). For complex protocols, a 10-state NFA might result in a DFA with hundreds of states, consuming significantly more memory.
-*   **Execution Time**: However, simulating an NFA in software is slower ($O(N^2)$ or varying based on active branches) because it requires tracking multiple active states or backtracking. A DFA, once compiled, processes inputs in strictly linear time $O(M)$ (where $M$ is string length) with constant lookup time $O(1)$ per character.
+**Execution Efficiency ($O(1)$ vs $O(N)$)**
+Despite the potentially larger size, DFAs are preferred for implementation due to execution speed.
+*   **DFA Execution**: A DFA processes an input string of length $M$ in exactly $O(M)$ time. The cost per character is $O(1)$—a simple table lookup. It implies constant-time processing regardless of complex patterns.
+*   **NFA Execution**: Simulating an NFA in software requires tracking all possible active states simultaneously. This typically costs $O(N)$ (or more specifically, proportional to the number of active branches) per character.
+For real-time systems, the constant-time guarantee of a DFA is superior to the variable processing load of an NFA simulation.
 
-**Implementation Consequence**
-For these reasons, **DFAs are the standard choice for implementation**. Compilers (lexical analysis) and network hardware use DFAs because they allow for fast, table-driven execution. NFAs are primarily used as a **modelling tool**—engineers design high-level, human-readable NFAs (or Regex), which automated tools then compile into optimized DFAs for the actual machine code. In the context of High Assurance Systems (like the intruder alert coursework), the predictability of a DFA is safer than the non-determinism of an NFA.
+**Why DFAs for Safety-Critical Hardware?**
+In safety-critical contexts (avionics, medical devices, intruder alarms), **Determinism** is paramount. An NFA's "magic" ability to guess the correct path is a theoretical abstraction; in reality, it implies ambiguity or backtracking. A DFA ensures that for every specific state and specific sensor input, the system's reaction is distinct, unique, and predictable. This allows for exhaustive formal verification (Model Checking), ensuring no "undefined behaviors" exist. Hardware circuits (FPGAs) are inherently deterministic; they map directly to DFA structures (logic gates + flip-flops) but cannot natively execute NFA non-determinism without complex emulation. Thus, DFAs are the rigorous standard for high-assurance implementation.
 
-### b) Intruder Alert System (Yakindu Statechart)
+### 3b) Intruder Alert Statechart (Yakindu)
 
-**Ambiguity Resolution**
-The specification states the button Toggles Mode I/II and the system works based on motion.
-*   **Ambiguity**: What happens if the button is pressed *while* the alarm is currently ringing? Does it just switch the mode for the *next* trigger, or does it immediately change the current behavior (e.g., turn on/off the lamp) and silence the alarm?
-*   **Resolution**: I assume the button acts as a **Master Control**. Pressing the button while the alarm is active will **immediately silence the alarm, reset the timer, and return the system to the Armed state**, effectively acknowledging the alert. This is a common "Reset/Arm" behavior in security systems.
+**Ambiguity Resolution Statement**:
+To resolve the specification's ambiguity regarding the button press, we explicitly assume the button acts as a **system reset** during an alarm condition. If the alarm is ringing (Mode I or II), pressing the button immediately silences the siren, turns off the lamp, and resets the system to the 'Armed' state, in addition to toggling the Mode variable. This prioritizes user control over the automated timer.
 
-**System Specification**
-
-*   **Inputs (Events)**:
-    *   `motion`: Triggered by Motion Sensor.
-    *   `button`: Triggered by Push Button.
-*   **Variables**:
-    *   `boolean modeII`: `false` = Mode I (Siren), `true` = Mode II (Siren + Lamp).
-*   **Outputs (Operations)**:
-    *   `siren.on()`, `siren.off()`
-    *   `lamp.on()`, `lamp.off()`
-
-**Yakindu Statechart Logic (Pseudo-code/Textual)**
+**Statechart Logic (Yakindu Dialect)**:
 
 ```text
-definition:
-    // Define Interface
-    interface:
-        in event motion
-        in event button
-        var modeII : boolean = false // Initial Mode I
-
-statechart IntruderSystem:
+@EventDriven
+@Statechart IntruderSystem {
     
-    // Initial State is Armed (Monitoring)
-    entry point -> Armed
+    // Interface Definition
+    interface {
+        in event motion  // Sensor Trigger
+        in event button  // User Toggle
+        var modeII : boolean = false // false=ModeI, true=ModeII
+        
+        operation sirenOn()
+        operation sirenOff()
+        operation lampOn()
+        operation lampOff()
+    }
 
-    // Top-Level State: Armed
-    // System is waiting for motion.
+    // Main Region
+    entry point > Armed
+
+    // State: Armed (Monitoring)
     state Armed {
         entry / 
-            siren.off();
-            lamp.off(); 
-            // Ensure safe state on entry
+            sirenOff(); 
+            lampOff();
         
-        // Transition: Motion detected
-        transition transition1:
-            on motion -> Alarming
-            
-        // Transition: Mode Toggle (Internal logic while Armed)
-        transition transition2:
-            on button / modeII = !modeII
+        // 1. Motion Trigger -> Go to Alert
+        transition on motion > CheckMode
+        
+        // 2. Mode Toggle (Quiet)
+        transition on button / modeII = !modeII > Armed
     }
 
-    // Composite State: Alarming
-    // System has detected an intruder.
-    state Alarming {
-        
-        // Timer for auto-shutoff
-        // "Alarm ceases... when no motion for > 30s"
-        // Implemented as a timeout that resets if motion re-occurs?
-        // Simple implementation: After 30s from start (or last motion), exit.
-        // We use 'after 30s' which resets if state is re-entered, 
-        // effectively handling the 'duration' requirement if we re-enter on motion.
-        transition timeout:
-            after 30s -> Armed
-            
-        // Human Override (Ambiguity Resolution)
-        // Button press silences alarm and returns to Armed.
-        transition reset:
-            on button / modeII = !modeII -> Armed
-
-        // Logic to determine outputs based on Mode
-        // We use a Choice node to determine entry action
-        entry point -> CheckMode
-        
-        choice CheckMode:
-            default -> SoundOnly 
-            if modeII -> SoundAndLight
-            
-        state SoundOnly {
-            entry / siren.on()
-            // If motion continues, we might re-set the 30s timer 
-            // (Subject to Yakindu specific timer logic, often 'after' is 
-            // sufficient if treated as simple timeout)
-        }
-        
-        state SoundAndLight {
-            entry / siren.on(); lamp.on()
-        }
+    // Pseudo-state: Choice (Decision Node)
+    choice CheckMode {
+        default > ModeI_Alert
+        if modeII > ModeII_Alert
     }
+
+    // State: Mode I (Siren Only)
+    state ModeI_Alert {
+        entry / sirenOn()
+        exit / sirenOff()
+        
+        // Timer Logic: Auto-reset after 30s
+        transition after 30s > Armed
+        
+        // Motion Logic: Re-triggering resets the timer
+        // A self-transition re-enters the state, resetting 'after' timer
+        transition on motion > ModeI_Alert
+        
+        // Button Logic: Reset/Silence and Toggle
+        transition on button / modeII = !modeII > Armed
+    }
+
+    // State: Mode II (Siren + Lamp)
+    state ModeII_Alert {
+        entry / sirenOn(); lampOn()
+        exit / sirenOff(); lampOff()
+        
+        // Timer Logic
+        transition after 30s > Armed
+        
+        // Motion Logic: Reset timer
+        transition on motion > ModeII_Alert
+        
+        // Button Logic: Reset/Silence and Toggle
+        transition on button / modeII = !modeII > Armed
+    }
+}
 ```
-
