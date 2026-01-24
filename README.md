@@ -141,53 +141,92 @@ stateDiagram-v2
 
 ---
 
-## Phase 2: Exercise 2 (Math & Minimization)
+## Phase 2: Exercise 2 (FSM Analysis & Math)
 
-### Minimization Tree (Example)
+### a) Informal Language Description
 
-**Method**: The **State Equivalence Method** (or Partition Refinement) works by initially creating partitions of states that are distinguishable (e.g., Final vs. Non-Final states) and iteratively splitting these partitions if states within them transition to different partitions for the same input.
+**i) Machine (i)**
+*   **Description**: The machine accepts binary strings that start with a '1', follow with an alternating sequence of '0's and '1's, and must end with a '0'.
+*   **Pattern**: $1(01)^*0$
+*   **Examples**: `10` (Accept), `1010` (Accept), `101010` (Accept). `1` (Reject), `101` (Reject), `0...` (Reject).
 
-**Constructed Example Tree**:
-Assumption: A simple DFA with states $\{q_0...q_5\}$ where $q_5$ is the only accepting state.
+**ii) Machine (ii)**
+*   **Description**: The machine accepts two main categories of strings:
+    1.  **Any string starting with 'a'**: Since $q_1$ is accepting and transitions to itself or $q_3$ (which is an accepting sink state), any sequence starting with 'a' is accepted.
+    2.  **Strings starting with 'b'**: These are accepted if they consist **only** of 'b's (looping in $q_2$). If an 'a' occurs after the initial 'b's, it must be part of the specific substring "aa", which transitions to the accepting sink state $q_3$. Strings like `ba` (ending in single a) or `bab` (without the aa transition) would typically be rejected (or stuck) depending on strictness.
+*   **Summary**: The language of all strings starting with 'a', union with the set of strings starting with 'b' that are either all 'b's or contain the substring 'aa' immediately after the initial 'b's.
 
-1.  **Level 0 (Root)**: Initial Separation
-    *   $\text{Partition}_0 = \{ \{q_0, q_1, q_2, q_3, q_4\}, \{q_5\} \}$ (Non-accepting vs Accepting)
-2.  **Level 1**: Check transitions on input '0' and '1'.
-    *   If $q_0, q_1$ go to Non-accepting set, but $q_2$ goes to Accepting set on input '1', they are distinguishable.
-    *   $\text{Partition}_1 = \{ \{q_0, q_1\}, \{q_2, q_3, q_4\}, \{q_5\} \}$
-3.  **Level 2**: Refine further until stable.
-    *   Split $\{q_2, q_3, q_4\}$ if $q_2 \to q_0$ but $q_3 \to q_5$.
-    *   $\text{Result} = \{ \{q_0, q_1\}, \{q_2\}, \{q_3, q_4\}, \{q_5\} \}$ (Example final distinguishable sets)
+### b) FSM Minimization
 
-### Modulo 4 Machine Transition Table
+**i) Minimization Tree**
+We apply the State Equivalence algorithm (Partition Refinement) on the states $\{q_0, q_1, q_2, q_3, q_4, q_5\}$.
 
-**Logic**: $S_{next} = (S_{current} \times 10 + \text{Input}) \mod 4$
-**States**: $q_0$ (Rem 0), $q_1$ (Rem 1), $q_2$ (Rem 2), $q_3$ (Rem 3).
-**Accepting State**: $q_0$
+*   **Root Partition**: Separation by Accepting State.
+    *   $\text{Group 1 (Non-Accepting)}: \{q_0, q_1, q_4, q_5\}$
+    *   $\text{Group 2 (Accepting)}: \{q_2, q_3\}$
+*   **Level 1 Refinement**: Check transitions for each group.
+    *   **Analyze Group 2**:
+        *   $q_2 \xrightarrow{a} q_1$ (Grp1), $\xrightarrow{b} q_5$ (Grp1)
+        *   $q_3 \xrightarrow{a} q_1$ (Grp1), $\xrightarrow{b} q_5$ (Grp1)
+        *   **Result**: $q_2$ and $q_3$ behave identically. Group 2 remains $\{q_2, q_3\}$.
+    *   **Analyze Group 1**:
+        *   $q_0 \xrightarrow{a} q_4$ (Grp1), $\xrightarrow{b} q_1$ (Grp1)
+        *   $q_4 \xrightarrow{a} q_0$ (Grp1), $\xrightarrow{b} q_5$ (Grp1)
+            *   *Note*: $q_0, q_4$ map to Group 1 on both inputs.
+        *   $q_1 \xrightarrow{a} q_2$ (Grp2), $\xrightarrow{b} q_3$ (Grp2)
+        *   $q_5 \xrightarrow{a} q_2$ (Grp2), $\xrightarrow{b} q_3$ (Grp2)
+            *   *Note*: $q_1, q_5$ map to Group 2 on both inputs.
+        *   **Result**: Group 1 splits into $\{q_0, q_4\}$ (map to Grp 1) and $\{q_1, q_5\}$ (map to Grp 2).
+*   **Final Partition (Level 2)**:
+    *   $P_{final} = \{ \{q_0, q_4\}, \{q_1, q_5\}, \{q_2, q_3\} \}$
 
-| Current State | Input ($d$) | Next State ($10 \times S + d \mod 4$) | Calculation |
-| :--- | :--- | :--- | :--- |
-| **$q_0$** | 0 | $q_0$ | $(0 + 0) \% 4 = 0$ |
-| **$q_0$** | 1 | $q_1$ | $(0 + 1) \% 4 = 1$ |
-| **$q_0$** | 2 | $q_2$ | $(0 + 2) \% 4 = 2$ |
-| **$q_0$** | 3 | $q_3$ | $(0 + 3) \% 4 = 3$ |
-| **$q_0$** | 4 | $q_0$ | $(0 + 4) \% 4 = 0$ |
-| ... | ... | ... | ... |
-| **$q_1$** | 0 | $q_2$ | $(10 + 0) \% 4 = 2$ |
-| **$q_1$** | 1 | $q_3$ | $(10 + 1) \% 4 = 3$ |
-| **$q_1$** | 2 | $q_0$ | $(10 + 2) \% 4 = 0$ |
-| **$q_1$** | 3 | $q_1$ | $(10 + 3) \% 4 = 1$ |
-| **$q_1$** | 4 | $q_2$ | $(10 + 4) \% 4 = 2$ |
-| ... | ... | ... | ... |
-| **$q_2$** | 0 | $q_0$ | $(20 + 0) \% 4 = 0$ |
-| **$q_2$** | 1 | $q_1$ | $(20 + 1) \% 4 = 1$ |
-| **$q_2$** | 2 | $q_2$ | $(20 + 2) \% 4 = 2$ |
-| ... | ... | ... | ... |
-| **$q_3$** | 0 | $q_2$ | $(30 + 0) \% 4 = 2$ |
-| **$q_3$** | 1 | $q_3$ | $(30 + 1) \% 4 = 3$ |
-| **$q_3$** | 2 | $q_0$ | $(30 + 2) \% 4 = 0$ |
+**ii) Minimal DFA**
+We merge the equivalent states into single states $A, B, C$.
+*   $A = \{q_0, q_4\}$ (Start State)
+*   $B = \{q_1, q_5\}$
+*   $C = \{q_2, q_3\}$ (Accepting State)
 
-*(Note: Pattern repeats. $Input \mod 4$ added to $(State \times 2) \mod 4$)*
+**Minimal Transitions**:
+*   $A \xrightarrow{a} A$ (since $q_0 \to q_4 \in A$)
+*   $A \xrightarrow{b} B$ (since $q_0 \to q_1 \in B$)
+*   $B \xrightarrow{a} C$ (since $q_1 \to q_2 \in C$)
+*   $B \xrightarrow{b} C$ (since $q_1 \to q_3 \in C$)
+*   $C \xrightarrow{a} B$ (since $q_2 \to q_1 \in B$)
+*   $C \xrightarrow{b} B$ (since $q_2 \to q_5 \in B$)
+
+### c) Modulo 4 Language
+
+**i) Deterministic Finite State Machine (Table)**
+States represent $r = \text{number} \mod 4$.
+Logic: $r_{next} = (r_{current} \times 10 + \text{digit}) \mod 4$.
+
+| Current State | Input (0..9) | Next State |
+| :--- | :--- | :--- |
+| **$q_0$ (rem 0)** | 0, 4, 8 | $q_0$ |
+| | 1, 5, 9 | $q_1$ |
+| | 2, 6 | $q_2$ |
+| | 3, 7 | $q_3$ |
+| **$q_1$ (rem 1)** | 0, 4, 8 | $q_2$ |
+| | 1, 5, 9 | $q_3$ |
+| | 2, 6 | $q_0$ |
+| | 3, 7 | $q_1$ |
+| **$q_2$ (rem 2)** | 0, 4, 8 | $q_0$ |
+| | 1, 5, 9 | $q_1$ |
+| | 2, 6 | $q_2$ |
+| | 3, 7 | $q_3$ |
+| **$q_3$ (rem 3)** | 0, 4, 8 | $q_2$ |
+| | 1, 5, 9 | $q_3$ |
+| | 2, 6 | $q_0$ |
+| | 3, 7 | $q_1$ |
+
+**ii) Regular Expression**
+A number is divisible by 4 if it is `0`, `4`, `8`, or if the number formed by its last two digits is divisible by 4.
+*   **Single digits**: `0|4|8`
+*   **Two+ digits**: Ends in `00, 04, 08, 12, 16, 20...`
+    *   If tens digit is **Even** (`0,2,4,6,8`), ones digit must be `0,4,8`.
+    *   If tens digit is **Odd** (`1,3,5,7,9`), ones digit must be `2,6`.
+*   **Regex**: `([0-9]*([02468][048]|[13579][26])) | 0 | 4 | 8`
+
 
 ---
 
