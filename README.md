@@ -232,62 +232,109 @@ A number is divisible by 4 if it is `0`, `4`, `8`, or if the number formed by it
 
 ## Phase 3: Exercise 3 (Intruder Alert System)
 
-### Critical Comparison: DFA vs. NFA
+### a) Critical Comparison: DFA vs. NFA
 
-**Determinism**: The fundamental difference lies in predictability. A **Deterministic Finite Automaton (DFA)** allows exactly one transition for every state-input pair, ensuring a single, unique execution path for any given string. In contrast, a **Non-Deterministic Finite Automaton (NFA)** may have multiple transitions (or none) for the same input, effectively exploring multiple paths simultaneously or allowing "guessing." This makes DFA behavior rigid and predictable, while NFA behavior is more abstract.
+**Introduction**
+Finite Automata are the theoretical backbone of computation logic. While Deterministic Finite Automata (DFA) and Non-Deterministic Finite Automata (NFA) are formally equivalent in terms of computational power—both recognize the set of Regular Languages—they differ significantly in their operational mechanics, complexity, and practical application logic. Identifying these differences is crucial for system architects choosing between verification rigour and design flexibility.
 
-**Complexity**: While NFAs are often easier to design and more compact, they come at a theoretical cost. An NFA with $N$ states can recognize languages that require up to $2^N$ states in an equivalent DFA. This explicit state explosion in DFAs occurs because the DFA must track every possible combination of states the NFA could be in. However, for verification and checking, this explicitness is often necessary.
+**Determinism and Predictability**
+The primary distinction lies in determinism. In a DFA, for every state $q$ and input symbol $a$, there is exactly one valid transition to a next state $\delta(q, a) = q'$. This determinism guarantees a unique, predictable execution path for any input string. Conversely, an NFA allows multiple potential transitions for the same input pair ($\delta(q, a) = \{q_1, q_2, \dots\}$) or even $\epsilon$-transitions (state changes without input). This allows an NFA to "guess" or explore parallel paths effectively. While this makes NFAs conceptually powerful for pattern matching (e.g., "does this string end in 'abc'?"), it introduces ambiguity that is unacceptable in safety-critical hard-real-time systems where the system state must be universally known at every clock cycle.
 
-**Implementation**: In terms of software and hardware implementation, **DFAs are superior**. A DFA can be implemented as a simple 2D lookup table ($States \times Inputs$), allowing for $O(1)$ transition time and $O(M)$ processing time for a string of length $M$. Implementing an NFA requires backtracking algorithms or maintaining a set of current states, which increases runtime overhead. Therefore, compilers and network protocols typically convert theoretical NFAs into minimal DFAs for efficient execution.
+**Complexity tradeoff (Space vs. Time)**
+A critical engineering tradeoff involves state space size versus execution speed.
+*   **Design Complexity**: NFAs are often much more concise. represent regular expressions directly with fewer states ($N$ states).
+*   **State Explosion**: Converting an NFA to an equivalent DFA (via the Subset Construction Algorithm) potentially leads to an exponential explosion in states ($2^N$). For complex protocols, a 10-state NFA might result in a DFA with hundreds of states, consuming significantly more memory.
+*   **Execution Time**: However, simulating an NFA in software is slower ($O(N^2)$ or varying based on active branches) because it requires tracking multiple active states or backtracking. A DFA, once compiled, processes inputs in strictly linear time $O(M)$ (where $M$ is string length) with constant lookup time $O(1)$ per character.
 
-### Intruder Alert System (Yakindu Statechart Specification)
+**Implementation Consequence**
+For these reasons, **DFAs are the standard choice for implementation**. Compilers (lexical analysis) and network hardware use DFAs because they allow for fast, table-driven execution. NFAs are primarily used as a **modelling tool**—engineers design high-level, human-readable NFAs (or Regex), which automated tools then compile into optimized DFAs for the actual machine code. In the context of High Assurance Systems (like the intruder alert coursework), the predictability of a DFA is safer than the non-determinism of an NFA.
 
-**Assumptions**:
-1.  **Ambiguity Resolution**: Pressing the button while the alarm rings **immediately silences the alarm** and **returns the system to the Armed state**, but toggles the internal response mode (e.g., from Mode I to Mode II) for the next trigger.
-2.  **No Motion**: The "Alarm stops if no motion for 30 seconds" constraint implies a timer that resets the system to Armed if not re-triggered.
+### b) Intruder Alert System (Yakindu Statechart)
 
-**Pseudo-code Specification**:
+**Ambiguity Resolution**
+The specification states the button Toggles Mode I/II and the system works based on motion.
+*   **Ambiguity**: What happens if the button is pressed *while* the alarm is currently ringing? Does it just switch the mode for the *next* trigger, or does it immediately change the current behavior (e.g., turn on/off the lamp) and silence the alarm?
+*   **Resolution**: I assume the button acts as a **Master Control**. Pressing the button while the alarm is active will **immediately silence the alarm, reset the timer, and return the system to the Armed state**, effectively acknowledging the alert. This is a common "Reset/Arm" behavior in security systems.
+
+**System Specification**
+
+*   **Inputs (Events)**:
+    *   `motion`: Triggered by Motion Sensor.
+    *   `button`: Triggered by Push Button.
+*   **Variables**:
+    *   `boolean modeII`: `false` = Mode I (Siren), `true` = Mode II (Siren + Lamp).
+*   **Outputs (Operations)**:
+    *   `siren.on()`, `siren.off()`
+    *   `lamp.on()`, `lamp.off()`
+
+**Yakindu Statechart Logic (Pseudo-code/Textual)**
 
 ```text
-Statechart: IntruderSystem
-Variables:
-    boolean mode_II_active = false  // false = Mode I (Siren), true = Mode II (Siren+Lamp)
+definition:
+    // Define Interface
+    interface:
+        in event motion
+        in event button
+        var modeII : boolean = false // Initial Mode I
 
-Region Main:
-    // Initial State
-    Entry Point --> Armed
+statechart IntruderSystem:
+    
+    // Initial State is Armed (Monitoring)
+    entry point -> Armed
 
-    State Armed:
-        // Transition: Motion detected triggers alarm
-        on event motion_detected -> CheckMode
-
-    // Transient decision node to route based on mode
-    State CheckMode (Choice):
-        if (mode_II_active == false) -> ModeI_Alarm
-        if (mode_II_active == true)  -> ModeII_Alarm
-
-    State ModeI_Alarm:
-        entry: siren.on()
-        exit: siren.off()
+    // Top-Level State: Armed
+    // System is waiting for motion.
+    state Armed {
+        entry / 
+            siren.off();
+            lamp.off(); 
+            // Ensure safe state on entry
         
-        // Timer Rule: Auto-shutoff
-        after 30s -> Armed
-        
-        // Button Rule: Silence and Toggle Mode
-        on event button_press:
-            mode_II_active = true
-            -> Armed
+        // Transition: Motion detected
+        transition transition1:
+            on motion -> Alarming
+            
+        // Transition: Mode Toggle (Internal logic while Armed)
+        transition transition2:
+            on button / modeII = !modeII
+    }
 
-    State ModeII_Alarm:
-        entry: siren.on(); lamp.on()
-        exit: siren.off(); lamp.off()
+    // Composite State: Alarming
+    // System has detected an intruder.
+    state Alarming {
         
-        // Timer Rule: Auto-shutoff
-        after 30s -> Armed
-        
-        // Button Rule: Silence and Toggle Mode
-        on event button_press:
-            mode_II_active = false
-            -> Armed
+        // Timer for auto-shutoff
+        // "Alarm ceases... when no motion for > 30s"
+        // Implemented as a timeout that resets if motion re-occurs?
+        // Simple implementation: After 30s from start (or last motion), exit.
+        // We use 'after 30s' which resets if state is re-entered, 
+        // effectively handling the 'duration' requirement if we re-enter on motion.
+        transition timeout:
+            after 30s -> Armed
+            
+        // Human Override (Ambiguity Resolution)
+        // Button press silences alarm and returns to Armed.
+        transition reset:
+            on button / modeII = !modeII -> Armed
 
+        // Logic to determine outputs based on Mode
+        // We use a Choice node to determine entry action
+        entry point -> CheckMode
+        
+        choice CheckMode:
+            default -> SoundOnly 
+            if modeII -> SoundAndLight
+            
+        state SoundOnly {
+            entry / siren.on()
+            // If motion continues, we might re-set the 30s timer 
+            // (Subject to Yakindu specific timer logic, often 'after' is 
+            // sufficient if treated as simple timeout)
+        }
+        
+        state SoundAndLight {
+            entry / siren.on(); lamp.on()
+        }
+    }
 ```
+
