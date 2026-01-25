@@ -215,3 +215,4 @@ The provided specification for the intruder alert system was identified as inten
 
 **Diagram**:
 ![Intruder System Diagram](IntruderSystem_Export.png)
+![Intruder System Diagram full screenshot](image.png)
